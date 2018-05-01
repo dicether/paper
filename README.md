@@ -1,6 +1,8 @@
 # Dicether Paper
 Description of dicether.com protocol.
 
+The latest version is generally available as a PDF at <https://dicether.github.io/paper/paper.pdf>.
+
 ## How to build
 
 ```
