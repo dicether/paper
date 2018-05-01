@@ -1,0 +1,362 @@
+\documentclass[oneside]{amsart}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{xspace}
+\usepackage{graphicx}
+\usepackage{multicol}
+\usepackage{subfig}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[a4paper, width=170mm,top=18mm,bottom=22mm,includeheadfoot]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{verbatim}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{pdflscape}
+\usepackage[hyphens,spaces,obeyspaces]{url}
+\usepackage{hyperref}
+\usepackage[acronym]{glossaries}
+\usepackage[style=numeric,natbib=true]{biblatex}
+\bibliography{bib}
+
+% Disable spacing of urls in bibliography
+\toks0\expandafter{\biburlsetup}
+\edef\biburlsetup{\the\toks0 \Urlmuskip =0mu\relax}
+
+\newcommand*\eg{e.g.\@\xspace}
+\newcommand*\Eg{E.g.\@\xspace}
+\newcommand*\ie{i.e.\@\xspace}
+\newcommand{\kec}{\texttt{KEC}}
+\newcommand{\conc}{\mathbin{\|}}
+
+% abbreviations:
+\newacronym{s}{S}{Server}
+\newacronym{p}{P}{Player}
+
+
+\newcommand\DicetherPaperVersionNumber{unknown revision}
+\IfFileExists{Options.tex}{\input{Options.tex}}
+
+
+\title{Dicether: A Secure Dice Game \DicetherPaperVersionNumber}
+\author{Dicether}
+
+\begin{document}
+
+\begin{abstract}
+This paper proposes a protocol for building a fair, secure and fast dice game.
+To achieve this the implementation is based on state channels.
+State channels allows to move state-altering operation normally performed on a blockchain off the blockchain.
+For conflict management and settlement Ethereum smart contracts are used but it should work on other blockchains providing
+smart contracts as well.
+The implementation can be tested at \url{dicether.com}
+\end{abstract}
+
+\maketitle
+
+\setlength{\columnsep}{20pt}
+\begin{multicols}{2}
+
+\section{Introduction}\label{sec:introduction}
+Currently there are mainly two types of dice games implementations available.
+At the first one the player deposits his funds for playing at the casino.
+To verify the results of the bets a provably fair algorithm~\cite{provableFair} is used.
+So, a user can verify the result of his bets, but the payout of the winnings is not guaranteed.
+The user needs to trust the operator to let him withdraw his funds and winnings.
+
+The other one is using  smart contracts~\cite{ethereum} to implement the game logic.
+The main downside of implementing the whole game logic inside a smart contract is the slow gambling experience for the player.
+He has to wait a few minutes or even longer for every single dice roll.
+Furthermore, currently there is no reliable smart contract random number generating possible.
+So, third party services like \eg \href{https://random.org}{\emph{RANDOM.ORG}}~\cite{randomOrg}
+and \href{https://oraclize.it}{\emph{ORACLIZE}}~\cite{oraclize} need to be used.
+
+\subsection{Driving Factors}\label{subsec:driving_factors}
+\emph{Dicether} combines the advantages of both approaches without
+their disadvantages, to create a better and securer overall gambling experience.
+The key factors are fast gameplay and provable secure winnings payout and no third-party dependency for
+random number generation.
+
+In this context fast means a bet should be resolved in under one second.
+Secure winnings payout implies it should always possible for \gls{p} to get his winnings.
+In no circumstances it should be possible for the operator to withhold the winnings of \gls{p}.
+The random number generation should only depend on \gls{s} and \gls{p}.
+Both should not know the result before the bet is finished.
+
+\subsection{Related Work}\label{subsec:related_work}
+\emph{Etheroll}~\cite{Etheroll} is a full on chain dice implementation.
+For random number generation is uses \href{https://random.org}{\emph{RANDOM.ORG}} and \href{https://oraclize.it}{\emph{ORACLIZE}}.
+To provide secure random numbers both need to be trusted.
+Under this assumption Etheroll is secure and provable fair.
+But \emph{RANDOM.ORG} could change the random number generated to their advantage.
+Furthermore, they does not even need to change the random numbers, they could just buffer the random numbers
+and place bets according to the previous known results.
+The same applies to \emph{ORACLIZE}.
+Additional, as they are implemented on the Ethereum platform, processing a bet can take up to multiple minutes.
+
+\emph{Edgeless}~\cite{Edgeless} provides a fast dice game.
+They do not provide any detailed documentation of the underling implementation in their whitepaper.
+The following details are extracted from reviewing their smart contract and their user interface.
+To start playing the player deposits his funds to their smart contract.
+For random number generation a server and player generated a random number (seed) is combined.
+The hash of the server seed is shown to the player before every bet.
+To check the fairness the player would have to check the server seed hash and combine his seed and the server seed
+for every single bet.
+So, checking fairness is more complicated as in traditional provable fair dice games like \eg Primedice~\cite{primedice}.
+
+\emph{Funfair}~\cite{Funfair} is a company providing blockchain solutions for online casinos.
+They do not have a dice game, but they are working on a state channel implementation.
+As they are currently closed source and do not provide any detailed documentation, no detailed comparison
+can be provided.
+
+\section{Overview}\label{sec:overview}
+The three main problems to solve are
+\begin{itemize}
+    \item Provable payout of the player funds and winnings. It should not be possible for the casino to withhold the player
+        funds or player winnings.
+    \item The bet result generation should be fast.
+        It should not take more than one second until the result is available to the player.
+    \item The random number generation should not be dependent on third party services.
+        The resulting random number for every bet should only be dependent on both \gls{s} and \gls{p}.
+        Both should not know the result beforehand.
+\end{itemize}
+
+Providing fast bet resolution, which implies the result should be available to the player under one second, the implementation
+can currently not be completely smart contract based.
+Additionally, secure and fast on chain random number generation is currently not possible on the ethereum platform~\cite{hpoc2015}.
+
+In order to solve these problems, we use a state channel~\cite{stateChannel} approach.
+Only for creating a game session, which can comprise many bet, ending the game session and management and settlement of
+conflicts, smart contract interaction in necessary.
+For every bet the current game state is countersigned by both \gls{s} and \gls{p}.
+If a conflict arise the current state can be pushed to the smart contract, which handles processing the bet and
+ends the game session.
+The details are described in~\autoref{sec:protocolDescription}
+
+Creating a game session, the player funds used for placing bet are deposited in the smart contract.
+\Gls{s} does not have access to them so it can not withdraw or otherwise remove the player funds.
+The house stake used to pay out the winnings is also managed by the smart contract.
+So, the players can check if the house funds are sufficient.
+
+For random number generation both \gls{p} and \gls{s} generate random seeds and generate,
+a chain of pseudorandom numbers by using Keccak hash function~\cite{keccak} for successive hashing the previous results.
+For detailed description see~\autoref{subsec:creatingGameSession}.
+It is easy to recalculate the chain entries in one direction but as hash function are non-invertible it is impossible
+calculate entries in the other direction.
+
+For every bet for random number generation the respectively  previous entries of the hash chains are used
+as seeds for random number generation.
+The seed of \gls{s} a \gls{p} are combined and hence the random number generated.
+During a game session the random numbers for every bet can be easily verified by just rebuilding both hash chains
+starting with the last placed bet seeds.
+
+\section{Protocol Description}\label{sec:protocolDescription}
+After giving a brief overview we will know describe the implementation in detail.
+Before placing bets, the player needs to initiate a game session.
+The number of bets possible for a game session is dependent on the hashchain size.
+For a hashchain with size $n$, $n - 2$ bets can be placed.
+During one game session only three blockchain interactions are necessary.
+Two\footnote{Creating a game session can be done in one transaction (Will be implemented in a future version).}
+for creating the session and one for ending the session.
+
+All interactions with the smart contract or externally defined functions are formatted as typewriter text.
+\Eg the function called by the player to create a games session is written as \texttt{createGame}.
+
+\subsection{Creating a game session}\label{subsec:creatingGameSession}
+For starting the game session \gls{p} generates a random value $r_p$ and uses it as a seed for generating a hash chain by hashing iteratively the
+previous result with the Keccak hash function.
+Formally the generation of the hash chain is defined as:
+\begin{equation}
+    \text{hc}(r, i) =
+    \begin{cases}
+        \kec(r), & i = 0 \\
+        \kec(\text{hc}(r, i-1)), & i > 0
+    \end{cases}
+\end{equation}
+The number of entries $n$ of the hash chain dictates maximum number of games playable.
+As described, currently we use $n = 1000$ iterations so at most $1000 - 2$ games can be played during one game session.
+To start a new game session \gls{p} deposits his funds for the game session and publish his
+last hash chain entry $\text{hc}(r_p, n - 1)$ to the smart contract:
+\begin{align}
+    \texttt{createGame}(\text{hc}(r_p, n - 1), \lbrace value: f_p \rbrace)
+\end{align}
+The funds are securely stored in the contract and $hc(r_p, n - 1)$  is published by the smart contract.
+
+When he server detects a new game session which is identified by $g$ (a simple counter incremented for every new game session) it accepts
+the game the  \gls{s} by generatin a random number $r_s$ and and a hash chain of size $n$.
+Finally, \gls{s} publishes the last entry of its hash chain to
+the contract:
+\begin{equation}
+    \texttt{acceptGame}(g, \text{hc}(r_s n - 1))
+\end{equation}
+
+\subsection{Placing bets}\label{subsec:placingBets}
+Placing bets happen by counter signing of current bet and previous results and revealing previous entry of
+hash chain for random number generation.
+The Game state $G = (B, S)$ consists of the bet $B$ and the signature $S$.
+The bet $B$ comprises the following fields:
+\begin{description}
+    \item[roundId] A scalar value equal to the number of placed bets for the game session; formally: $B_r$
+    \item[gameType] Game type of placed bet; formally: $B_t$
+    \item[number] Number chosen by player. \Eg between 1 and 98 for dice; formally: $B_n$
+    \item[value] Amount player wants to bet; formally: $B_v$
+    \item[currentBalance] Profit or Loss of previous bets. Initial 0; formally: $B_b$
+    \item[serverHash] Current server hash; formally: $B_{sh} = \text{hc}(p_s, n - B_r)$.
+    \item[playerHash] Current player hash; formally: $B_{ph} = \text{hc}(s_s, n - B_r)$.
+    \item[gameId] Game session identifier. Simple counter incremented for every game session created; formally: $B_{g}$
+    \item[contractAddress] Address of contract this bet is valid; formally: $B_{c}$
+\end{description}
+The signature comprises the fields:
+\begin{description}
+    \item[playerSignature] Player' s signature over bet data $B$; formally: $S_p$
+    \item[serverSignature] Server' s signature over bet data $B$; formally: $S_s$
+\end{description}
+
+\subsubsection{Initiating a bet}
+To place a bet the player increments the current round id, sets the game type $g$, chooses a number $n$, a value $v$, sets
+the hashes of \gls{s} and \gls{p} and the balance $b$. $b$ is the balance of the previous bet state added to
+the player profit of the last bet.
+Formally with $B^*$ being the new bet state and $B$ being the old state:
+\begin{align}
+    &B^*_r = B_r + 1 \\
+    &B^*_t = g \\
+    &B^*_n = n \\
+    &B^*_v = v \\
+    &B^*_b = b \\
+    &B^*_{ph} = \text{hc}(p_s, n - B^*_r) \\
+    &B^*_{sh} = \text{hc}(s_s, n - B^*_r)
+\end{align}
+The new bet state $B*$ is signed by \gls{p}. %TODO How is bet signed???
+The signature and $B^*$ is send to \gls{s}.
+\Gls{s} verifies the signature the bet state $B^*$. %TODO How is the bet verified!!!
+If verification passes \gls{s} signs the bet $B^*$ and returns the signature to \gls{p}
+Subsequent \gls{p} verifies the signature of \gls{s}.
+
+\subsubsection{Revealing the seed}
+If the signature \gls{s} is valid \gls{p} sends his seed $p_s = hc(r_s, n - B^*_r - 1)$, which is
+nothing more than the previous entry in the hash chain, to \gls{s}.
+\Gls{s} verifies the seed. Formally:
+\begin{equation}
+    \vdash \kec(p_s) = B^*_{ph}
+\end{equation}
+If verification succeeds \gls{s} returns its seed $s_s = hc(r_p, n - B^*_r - 1)$ to \gls{p}.
+\Gls{p} verifies the seed:
+\begin{equation}
+    \vdash \kec(s_s) = B^*_{sh}
+\end{equation}
+
+\subsubsection{Result calculation}
+To finally generate the random number $r$ both seeds are concatenated, and the Keccak hash is calculated:
+\begin{equation}
+    r = \kec(s_s \conc p_s)
+\end{equation}
+The bet result calculation is dependent of the game type,
+\eg for dice, the result number is calculated by $r \mod 100$.
+Modulo bias~\cite{moduloBias} is negligible as $r \ggg 100$.
+With the result number the new balance can be calculated (game type dependent) and the next round can be started.
+
+\subsection{Ending the game session}\label{subsec:endGameSession}
+To end the current game session \gls{p} signs a special bet state with game type $B_t = 0$.
+As above $B$ describes
+previous bet state $B^*$ is the new one:
+\begin{align}
+    &B^*_r = B_r + 1 \\
+    &B^*_t = 0 \\
+    &B^*_n = 0 \\
+    &B^*_v = 0 \\
+    &B^*_b = B_b  \\
+    &B^*_{ph} = \text{hc}(p_s, n - B^*_r) \\
+    &B^*_{sh} = \text{hc}(s_s, n - B^*_r)
+\end{align}
+As when placing bets $B*$ and the signature is send to \gls{s} where the signature and the state is verified.
+If both are valid \gls{s} signs $B^*$ and sends the the current bet state  $B^*$ and the signature of
+\gls{p} to the smart contract:
+\begin{equation}
+    \texttt{serverEndGame}(B^*, S_p^*)
+\end{equation}
+The smart contract validates the signature and sends the balance added to funds initial deposited by the player back to him.
+
+\subsection{Conflict Resolution}\label{subsec:conflictResolution}
+In the above chapter we have described how a regular game session, when player and server comply with the rules, is handled.
+Know will examine which conflicts between player and server can arise and describe how
+they can be resolved using the conflict resolution logic implemented in the smart contract.
+
+If the opponent does not respond the conflict initiator can force the termination of the game session.
+To give the opponent enough time to respond to a conflict all functions forcing game session termination are
+time locked!
+Additionally, to offer an incentive to regular end game session a fee needs to paid the opponent when he does not respond in time and
+the game session termination is forced.
+% TODO: Fee for opponent!
+
+\subsubsection{\Gls{s} does not respond after game session creation}
+\Gls{p} starts game session $g$ and the server stops responding.
+With $\texttt{playerCancelActiveGame}(g)$ the player can initiated the termination of the game session.
+After specific time $t_s$ has passed to give the server time to respond the player can force the termination
+of the game session and gets his deposited funds send back.
+
+\subsubsection{\Gls{s} does not allow to place new bets or to end the game session}
+With the current game state $G = (B,S)$ \Gls{p} can push the current bet state $B$, his seed
+$p_s=\text{hc}(p_s, n - B_r - 1)$ and the signature of \gls{s} to the smart contract:
+\begin{equation}
+    \texttt{playerEndGameConflict}(B, p_s, S_s)
+\end{equation}
+\Gls{s} has time $t_s$ to push a newer bet state $B^*$ or confirm state of \gls{p}.
+If the server does not respond in time $t_s$ \gls{p} can force the game session termination.
+The bet state $B$ is used by the smart contract to calculate players earnings.
+The player earnings added to the initial deposited funds are send back to \gls{p}. % TODO: balance is added
+
+\subsubsection{\Gls{s} does not respond to the reveal seed request}\label{subsubsec:serverNotRevealingSeed}
+\Gls{p} placed a bet $B^*$, \gls{s} signed the bet and returned its signature to \gls{p}.
+In the next step \gls{p} sends his seed to \gls{s} but it does not return its seed.
+\Gls{p} can now publish the current bet state $B^*$ and his seed
+$p_s=\text{hc}(r_s, n - B_r - 1)$ to the smart contract:
+\begin{equation}
+    \texttt{playerEndGameConflict}(B, p_s, S_s)
+\end{equation}
+If \gls{s} does not reveal its seed int time $t_s$ to the smart contract, the player can
+force the termination of the game session and the bet is processed as the player has won.
+
+
+\subsubsection{\Gls{p} creates a game session but does not play}\label{subsubsec:playerStopsPlaying}
+\Gls{s} can initiate the termination of the game session:
+\begin{equation}
+    \texttt{serverCancelActiveGame}()
+\end{equation}
+\Gls{p} has time $t_p$ to push newer bet state.
+If he does not, \gls{s} can force the termination of the game session.
+The funds deposited by \gls{p} are send to back to him.
+
+\subsubsection{\Gls{p} stops playing without ending the game session}
+With the game state $G = (B,S)$ \gls{s} can publish last bet state $B$, his seed $s_s=\text{hc}(r_s, n - B_r - 1)$
+and the player seed $p_s=\text{hc}(r_s, n - B_r - 1)$ to the contract:
+\begin{equation}
+    \texttt{serverEndGameConflict}(B, s_s, p_s, S_p)
+\end{equation}
+If \gls{p} does not publish a newer one or confirms the current state in time $t_p$, \gls{s} can force the termination
+of the game session.
+The current balance added to the initial deposited funds are send back to \gls{p}.
+
+\subsubsection{The player does not reveal his seed}
+The bet $B^*$ is signed by \gls{p} and \gls{s} and in the next step \gls{p} would need to reveal his seed.
+Without \gls{p} revealing his seed both \gls{p} and \gls{s} can not calculate the random number needed to get the bet result.
+So, this case can be handled as the bet $B^*$ was never placed and the player stopped playing, see~\autoref{subsubsec:playerStopsPlaying}.
+
+This is the only real difference in player and server side conflict handling.
+If \gls{s} does not reveal his seed the bet can bet ignored as both \gls{s} and \gls{p} do not know the bet outcome.
+But the case the server does not reveal its seed special logic is needed.
+As in the previous step \gls{p} send his seed to \gls{s}, so \gls{s} can calculate the result.
+If it does not like it, it could just not return its seed.
+So in this case the bet can not be ignored and this conflict needs special handling as described in~\autoref{subsubsec:serverNotRevealingSeed}.
+
+\section{Conclusions}\label{sec:sumary}
+We have introduced and formally defined the protocol of a state channel based dice game.
+It provides fast game play and yet it is provable fair and secure.
+The complete game session can be verified by the player.
+The payout of the winnings and funds of the player cannot be withhold by the operator.
+The implementation can be tested under \url{https://dicether.com}.
+The source code can be found at \url{https://github.com/dicether}.
+
+\printbibliography
+\end{multicols}
+\end{document}
