@@ -1,7 +1,6 @@
 version: 2
 jobs:
   build:
-    working_directory: /tmp
     docker:
       - image: koppor/texlive
     steps:
@@ -12,19 +11,19 @@ jobs:
           paths:
             - paper.pdf
   deploy:
-    working_directory: /tmp
     docker:
       - image: alpine/git
     steps:
+      - checkout
       - attach_workspace:
-          at: /tmp/build
+          at: build
       - run: ./.circleci/deploy.sh
 
 workflows:
   version: 2
-  btd:
+  build-and-deploy:
     jobs:
       - build
       - deploy:
-        requires:
-          - build
+          requires:
+            - build
