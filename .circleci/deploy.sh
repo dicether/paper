@@ -8,6 +8,7 @@ set -e
 pwd
 
 remote=$(git config remote.origin.url)
+SHA=`git rev-parse --verify HEAD`
 
 # make a directory to put the gp-pages branch
 mkdir gh-pages-branch
@@ -32,10 +33,14 @@ fi
 # copy over or recompile the new site
 cp -a "../build/paper.pdf" .
 
+echo "# Automatic build" > README.md
+echo "Built pdf from \`$SHA\`. See https://github.com/dicether/paper/ for details." >> README.md
+echo "The generated pdf is here: https://dicether.github.io/paper/paper.pdf" >> README.md
+
 # stage any changes and new files
 git add -A
-# now commit, ignoring branch gh-pages doesn't seem to work, so trying skip
-git commit --allow-empty -m "Deploy to GitHub pages [ci skip]"
+# now commit
+git commit --allow-empty -m "Built pdf from {$SHA}."
 # and push, but send any output to /dev/null to hide anything sensitive
 git push --force --quiet origin gh-pages  > /dev/null 2>&1
 
