@@ -40,7 +40,7 @@ echo "The generated pdf is here: https://dicether.github.io/paper/paper.pdf" >> 
 # stage any changes and new files
 git add -A
 # now commit
-git commit --allow-empty -m "Built pdf from {$SHA}."
+git commit --allow-empty -m "Built pdf from {$SHA}. [ci skip]"
 # and push, but send any output to /dev/null to hide anything sensitive
 git push --force --quiet origin gh-pages  > /dev/null 2>&1
 
