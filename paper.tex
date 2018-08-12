@@ -176,22 +176,27 @@ Formally the generation of the hash chain is defined as:
 \end{equation}
 The number of entries $n$ of the hash chain dictates maximum number of games playable.
 As described, currently we use $n = 1000$ iterations so at most $1000 - 2$ games can be played during one game session.
-To start a new game session \gls{p} deposits his funds for the game session and publish his
-last hash chain entry $\text{hc}(r_p, n - 1)$ to the smart contract:
+
+To start a new game session \gls{p} sends a request to \gls{s}.
+\Gls{s} generates a random number $r_s$ and using this number a hash chain of size $n$.
+
+Then \Gls{s} signs the data $D$. The resulting signature is denoted by $\text{sig}_{\text{start}}$.
+$D$ comprises the following fields:
+\begin{description}
+    \item[contractAddress] Address of the contract; formally $D_a$
+    \item[playerAddress] Address of the player; formally $D_{pa}$
+    \item[previousGameId] Id of the previous game session of $D_{pa}$. Initial 0; formally $D_g$
+    \item[createBefore] Unix timestamp. Only before that timestamp the player is allowed to create a new game session; formally $D_t$
+    \item[serverEndHash] Last hash chain entry of \gls{s}; $\text{hc}(r_s, n - 1)$
+\end{description}
+
+To finally start a new game session \gls{p} deposits his funds for the game session and publish his $\text{hc}(r_p, n - 1)$
+and the last hash chain entry of \gls{s} $\text{hc}(r_s, n - 1)$ to the smart contract:
 \begin{align}
-    \texttt{createGame}(\text{hc}(r_p, n - 1), \lbrace value: f_p \rbrace)
+    \texttt{createGame}(D_a, D_{pa}, D_g, D_t, \text{hc}(r_p, n - 1), \text{sig}_{\text{start}}, \lbrace value: f_p \rbrace)
 \end{align}
-The funds are securely stored in the contract and $hc(r_p, n - 1)$  is published by the smart contract.
+The funds are securely stored in the contract and $hc(r_p, n - 1)$, $hc(r_s, n - 1)$  is published.
 
-When he server detects a new game session which is identified by $g$ (a simple counter incremented for every new game session) it accepts
-the game the  \gls{s} by generatin a random number $r_s$ and and a hash chain of size $n$.
-Finally, \gls{s} publishes the last entry of its hash chain to
-the contract:
-\begin{equation}
-    \texttt{acceptGame}(g, \text{hc}(r_s n - 1))
-\end{equation}
-
-\subsection{Placing bets}\label{subsec:placingBets}
 Placing bets happen by counter signing of current bet and previous results and revealing previous entry of
 hash chain for random number generation.
 The Game state $G = (B, S)$ consists of the bet $B$ and the signature $S$.
