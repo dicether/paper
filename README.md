@@ -1,3 +1,3 @@
 # Automatic build
-Built pdf from `efe9e7a711febb3589a78543ad6667f8ebbd113d`. See https://github.com/dicether/paper/ for details.
+Built pdf from `5f62607eaa3d66639bf4f400b5cccfd691254642`. See https://github.com/dicether/paper/ for details.
 The generated pdf is here: https://dicether.github.io/paper/paper.pdf
