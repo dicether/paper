@@ -17,6 +17,9 @@ jobs:
       - checkout
       - attach_workspace:
           at: build
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:LYy3YgaVtJL9IW/WthEVeahur/rMpXyngUOVPk32I60"
       - run: ./.circleci/deploy.sh
 
 workflows:
